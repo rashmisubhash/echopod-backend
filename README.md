@@ -2,82 +2,100 @@
 
 # 🎧 EchoPod Backend
 
-EchoPod is an AI-powered personalized podcast generator that transforms user-submitted topics into custom, chapter-wise audio content in under 2 minutes. This backend powers the content generation, audio synthesis, and user management workflows using a serverless, event-driven architecture.
+EchoPod is an AI-powered learning companion that turns any topic into a personalized, chapter-wise podcast in under 2 minutes.  
+It generates structured educational content, converts it to audio using Amazon Polly, and delivers a seamless podcast experience — all powered by a fully serverless backend.
 
 ---
 
-## 🚀 Overview
+## ⚙️ Overview
 
-The EchoPod backend is built using **FastAPI**, **AWS Lambda**, **Amazon Bedrock**, **Amazon Polly**, **S3**, **Cognito**, and **EventBridge** to generate, store, and deliver AI-generated educational podcasts. It also supports speech-to-text input and real-time status updates.
-
----
-
-## 🧠 Modules & Workflows
-
-### 📚 Content Generation
-
-- **POST /api/podcast/topic**  
-  Accepts topic, tone, difficulty, and category; stores metadata in DynamoDB and triggers content generation Step Function.
-
-- **Lambda: EPStoreTopic**  
-  Initiates and logs podcast generation requests.
-
-- **Lambda: EPTechProgramming / EPScience / EPMath**  
-  Fetches chapter-wise content using Amazon Bedrock (Claude 3.5) based on the selected category. Stores chapter content in JSON format in S3.
+This backend manages the entire generation pipeline via **a single API endpoint**, triggering an **AWS Step Function** to handle content generation, audio processing, and finalization.
 
 ---
 
-### 🎙️ Audio Generation
+## 🚀 Public API
 
-- **Lambda: EPPolly**  
-  Triggered via Step Function Map State to convert each chapter into MP3 audio using Amazon Polly. Runs parallel tasks and saves to S3.
+### `POST /api/podcast/topic`
 
-- **Lambda: EPAudioFinalizer**  
-  Combines audio parts (if applicable), compresses them, and prepares the final podcast file.
+Initiates the full podcast generation process.
 
----
+#### Request Body:
+```json
+{
+  "topic": "Binary Trees",
+  "category": "Technical & Programming",
+  "tone": "Conversational",
+  "difficulty": "Intermediate",
+  "user_id": "netid123"
+}
+```
 
-### 🗣️ Speech-to-Text & Personalization
+## 🧠 Step Function Workflow
 
-- **POST /api/voice-to-text**  
-  Accepts recorded voice input and returns the transcribed topic using Groq APIs.
-
-- **POST /api/carbon-summary**  
-  (Optional fun feature) Generates a carbon-emission equivalent if EchoPod is used instead of video learning.
-
----
-
-### 🔐 Authentication
-
-- **Cognito Integration**  
-  - **/signup**, **/confirm**, **/signin** handled via Cognito user pool.
-  - Access tokens are used to authenticate all protected API routes.
+The entire generation process is orchestrated using an **AWS Step Function** called `EchoPodGenerationFlow`. It executes the following Lambda functions in sequence and parallel:
 
 ---
 
-## 📦 Data Storage
+### 1️⃣ `epstoretopic.py` – Initial Lambda
+- Validates the incoming request from the `/api/podcast/topic` endpoint
+- Stores the topic metadata in **DynamoDB**
+- Triggers the next Lambda based on the selected **category**
 
-- **DynamoDB**  
-  Stores user profile, podcast metadata, and generation status.
+---
 
-- **S3**  
-  Stores:
-  - JSON content (chapter-wise breakdowns)
-  - MP3 files (per chapter and final compressed audio)
-  - Final podcast packages (ready for streaming)
+### 2️⃣ `eptechprogramming.py` (or similar category-specific Lambda)
+- Uses **Amazon Bedrock (Claude Sonnet 3.5)** to generate educational content
+- Breaks the content into up to **7 structured chapters**
+- Saves the chapter-wise JSON content into **Amazon S3**
+
+---
+
+### 3️⃣ `eppolly.py` – Audio Generation (Parallel)
+- Triggered using **Step Function Map State**
+- Converts each chapter to **MP3** using **Amazon Polly**
+- Stores all MP3s in **S3**, organized by topic and chapter number
+
+---
+
+### 4️⃣ `epaudiofinalizer.py` – Finalization & Compression
+- Compresses/merges MP3s (if chapters have multiple parts)
+- Stores the **final podcast-ready MP3** in a public or private S3 location
+
+---
+
+### 5️⃣ `sendnotification.py` *(optional)*
+- Publishes a **"podcast ready" event** to **Amazon EventBridge**
+- Can trigger frontend notification, webhook, or email system
+
 
 ---
 
 ## 🧩 Architecture Highlights
 
 - 🛠 **Backend**: FastAPI + Python (deployed to AWS Lambda)
-- 📊 **AI Models**: Amazon Bedrock (Claude 3.5), Amazon Polly, Groq API
-- ☁️ **Infra**: Serverless (Lambda + API Gateway + EventBridge)
+- 📊 **AI Models**: Amazon Bedrock (Claude 3.5), Amazon Polly
+- ☁️ **Infra**: Serverless (Lambda + API Gateway + SQS + Websockets + IAM + DynamoDB + Step Functions + S3)
 - 📦 **Storage**: Amazon S3 + DynamoDB
 - 🔄 **Workflows**: AWS Step Functions for parallelized audio and compression tasks
-- 🔐 **Auth**: Amazon Cognito (NetID-compatible for university integrations)
+- 🔐 **Auth**: Amazon Cognito 
 
 ---
+
+## 📦 Tech Stack Summary
+
+| Layer             | Technology                                      |
+|------------------|--------------------------------------------------|
+| API Framework     | FastAPI (Python)                                 |
+| Authentication    | Amazon Cognito                                   |
+| Content Generation| Amazon Bedrock (Claude Sonnet 3.5)               |
+| Text-to-Speech    | Amazon Polly                                     |
+| Orchestration     | AWS Step Functions + Lambda                      |
+| Data Storage      | Amazon S3 (audio + JSON), DynamoDB (metadata)    |
+| Eventing & Logs   | Amazon EventBridge, CloudWatch, Boto3            |
+| Hosting/API       | AWS Lambda + API Gateway                         |
+| Dev Tools         | Uvicorn, Pydantic, Boto3, dotenv                 |
+
+--
 
 ## 🧪 Future Endpoints
 
@@ -86,6 +104,4 @@ The EchoPod backend is built using **FastAPI**, **AWS Lambda**, **Amazon Bedrock
 - `/api/favorites` – Save favorite chapters or podcasts  
 
 ---
-
-## 📂 Folder Structure
 
