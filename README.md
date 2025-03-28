@@ -95,7 +95,7 @@ The entire generation process is orchestrated using an **AWS Step Function** cal
 | Hosting/API       | AWS Lambda + API Gateway                         |
 | Dev Tools         | Uvicorn, Pydantic, Boto3, dotenv                 |
 
---
+---
 
 ## 🧪 Future Endpoints
 
